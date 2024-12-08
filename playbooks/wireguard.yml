@@ -1,0 +1,82 @@
+- name: configuration wireguard in public instance
+  hosts: wireguard-host
+  become: true
+
+  tasks:
+    - name: update system
+      apt:
+        update_cache: yes
+    - name: install wireguard
+      apt:
+        name: wireguard
+        state: present
+    
+    - name: delete file private key
+      file: 
+        path: /etc/wireguard/server_private.key
+        state: absent
+
+    - name: delete file public key
+      file:
+        path: /etc/wireguard/server_public.key
+        state: absent
+
+    - name: Generate WireGuard server private key
+      command: wg genkey
+      register: private_key
+      args:
+        creates: /etc/wireguard/server_private.key
+
+    - name: Display private key
+      debug:
+        msg: "Server Private Key: {{ private_key.stdout }}"
+
+
+    - name: Generate WireGuard server public key
+      shell: echo "{{ private_key.stdout }}" | wg pubkey
+      register: public_key
+      args:
+        creates: /etc/wireguard/server_public.key
+
+    - name: Display public key
+      debug:
+        msg: "Server Public Key: {{ public_key.stdout }}"
+
+    - name: Save private key to file
+      copy:
+        content: "{{ private_key.stdout }}"
+        dest: /etc/wireguard/server_private.key
+        mode: '0600'
+
+    - name: Save public key to file
+      copy:
+        content: "{{ public_key.stdout }}"
+        dest: /etc/wireguard/server_public.key
+        mode: '0644'
+
+    - name: Create WireGuard configuration file
+      template:
+        src: wg0.conf.j2
+        dest: /etc/wireguard/wg0.conf
+        mode: '0600'
+    - name: enabling ip forwading
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+    - name: Open WireGuard port in UFW
+      ufw:
+        rule: allow
+        port: '51820'
+        proto: udp
+
+    - name: Allow SSH through UFW
+      ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: Enable UFW
+      ufw:
+       state: enabled
+
+

@@ -1,0 +1,66 @@
+- hosts: localhost
+  vars:
+    ssh_key_path: /home/rendy/.ssh/gcp_key.pub
+    gcp_project: ansible-rnd-project
+  tasks:
+    - name: get ssh key
+      ansible.builtin.shell: "cat {{ ssh_key_path }}"
+      register: ssh_key
+    - name: create public instance
+      google.cloud.gcp_compute_instance:
+        name: wireguard-instance
+        zone: asia-southeast2-b
+        machine_type: e2-medium
+        project: "{{ gcp_project }}"
+        auth_kind: serviceaccount
+        service_account_file: /home/rendy/.ssh/gcp.json
+        network_interfaces:
+          - network:
+              selfLink: "projects/{{ gcp_project }}/global/networks/ansible-vpc"
+            subnetwork:
+              selfLink: "projects/{{ gcp_project }}/regions/asia-southeast2/subnetworks/wr-subnet"
+            access_configs:
+              - name: "External NAT"
+                type: "ONE_TO_ONE_NAT"
+                network_tier: "STANDARD"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts'
+              disk_size_gb: 10
+        metadata:
+          ssh-keys: "rendimana12:{{ ssh_key.stdout }}"
+        tags:
+          items:
+            - wireguard-host
+        state: present
+
+    - name: create private instance
+      google.cloud.gcp_compute_instance:
+        name: private-instance
+        zone: asia-southeast2-a
+        machine_type: e2-medium
+        project: "{{ gcp_project }}"
+        auth_kind: serviceaccount
+        service_account_file: /home/rendy/.ssh/gcp.json
+        network_interfaces:
+          - network: 
+              selfLink: "projects/{{ gcp_project }}/global/networks/ansible-vpc"
+            subnetwork:
+              selfLink: "projects/{{ gcp_project }}/regions/asia-southeast2/subnetworks/private-subnet"
+            access_configs: []
+        disks:
+           - auto_delete: true
+             boot: true
+             initialize_params:
+              source_image: 'projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts'
+              disk_size_gb: 10
+        metadata:
+          ssh-keys: "rendimana12:{{ ssh_key.stdout }}"
+        tags:
+          items:
+            - target-host
+        state: present
+
+        

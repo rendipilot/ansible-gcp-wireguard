@@ -1,0 +1,64 @@
+- hosts: localhost
+  vars:
+    project: ansible-rnd-project
+    region: asia-southeast2
+    auth: serviceaccount
+    path_auth: /home/rendy/.ssh/gcp.json
+  tasks:
+    - name: create vpc-network
+      google.cloud.gcp_compute_network:
+        name: ansible-vpc
+        auto_create_subnetworks: no
+        auth_kind: "{{ auth }}"
+        service_account_file: "{{ path_auth }}"
+        project: "{{ project }}"
+        state: present
+      register: vpc_network
+    - name: create subnet public
+      google.cloud.gcp_compute_subnetwork:
+        name: wr-subnet
+        region: "{{ region }}"
+        network: "{{ vpc_network }}"
+        ip_cidr_range: 10.0.0.0/24 # 254 ip addres
+        project: ansible-rnd-project
+        auth_kind:  "{{ auth }}" 
+        service_account_file:  "{{ path_auth }}"
+        state: present
+    - name: create subnet private
+      google.cloud.gcp_compute_subnetwork:
+        name: private-subnet
+        region: "{{ region }}"
+        network: "{{ vpc_network }}"
+        ip_cidr_range: 10.0.25.0/24
+        project: ansible-rnd-project
+        auth_kind: "{{ auth }}"
+        service_account_file: "{{ path_auth }}"
+        state: present
+    - name: create firewall for public subnet
+      google.cloud.gcp_compute_firewall:
+        name: allow-wireguard         
+        auth_kind: "{{ auth }}"
+        service_account_file: "{{ path_auth }}"
+        project: "{{ project }}"
+        allowed:
+          - ip_protocol: udp
+            ports: 51820
+        source_ranges: 0.0.0.0/0
+        network:
+          selfLink: "{{ vpc_network.selfLink }}"
+        target_tags: wireguard-host
+    - name: create firewall for private subnet
+      google.cloud.gcp_compute_firewall:
+        name: allow-private-from-publicsub
+        auth_kind: "{{ auth }}" 
+        service_account_file: "{{ path_auth }}"
+        project: "{{ project }}"
+        allowed:
+          - ip_protocol: tcp
+            ports: ["22"]
+        source_tags:
+          - wireguard-host
+        target_tags:
+          - target-host
+        network:
+          selfLink: "{{ vpc_network.selfLink }}"

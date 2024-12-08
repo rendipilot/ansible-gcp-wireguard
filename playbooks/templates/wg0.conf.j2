@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = {{ private_key.stdout }}
+Address = 10.0.0.4/24
+ListenPort = 51820
+SaveConfig = true
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = A6dlVNyFv9iV/84pQDaYmY34FDmRWOnkRguRQO+P/EQ=   # Gantilah dengan public key client Anda
+AllowedIPs = 0.0.0.0/0
